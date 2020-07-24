@@ -8,39 +8,51 @@ import {
 // shouldTrack is from isFocused
 export default (shouldTrack, callback) => {
   const [err, setErr] = useState(null);
-  const [subscriber, setSubscriber] = useState(null);
-
-  const startWatching = async () => {
-    try {
-      const { granted } = await requestPermissionsAsync();
-      // subscriber
-      const sub = await watchPositionAsync(
-        {
-          accuracy: Accuracy.BestForNavigation,
-          timeInterval: 1000,
-          distanceInterval: 10,
-        },
-        callback
-      );
-      // add subscriber to state 
-      setSubscriber(sub);
-      if (!granted) {
-        throw new Error('Location services not granted');
-      }
-    } catch (err) {
-      setErr(err);
-    }
-  };
+  // Moved to useEffect as local variable
+  //const [subscriber, setSubscriber] = useState(null);
 
   useEffect(() => {
+    let subscriber;
+
+    const startWatching = async () => {
+      try {
+        const { granted } = await requestPermissionsAsync();
+        // subscriber
+        subscriber = await watchPositionAsync(
+          {
+            accuracy: Accuracy.BestForNavigation,
+            timeInterval: 1000,
+            distanceInterval: 10,
+          },
+          callback
+        );
+        // add subscriber to state
+        if (!granted) {
+          throw new Error('Location services not granted');
+        }
+      } catch (err) {
+        setErr(err);
+      }
+    };
+
     if (shouldTrack) {
       startWatching();
     } else {
       // stop watching
-      subscriber.remove();
-      setSubscriber(null);
+      if (subscriber) {
+        subscriber.remove();
+      }
+      subscriber = null;
     }
-  }, [shouldTrack]);
+
+    // Cleanup function
+    return () => {
+      if (subscriber) {
+        subscriber.remove();
+      }
+    };
+    // Need to use useCallback hook in TrackCreate otherwise we get memory crasch
+  }, [shouldTrack, callback]);
 
   return [err];
 };
